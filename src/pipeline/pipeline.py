@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -9,7 +8,9 @@ from src.collectors.vnexpress import VnExpressCollector
 from src.processors.filter import filter_articles
 from src.processors.keyword_extractor import extract_top_keywords, rank_articles
 from src.processors.summarizer import summarize_dataset
+from src.utils.article_storage import load_articles_json, save_articles_json
 from src.utils.date_utils import parse_iso_datetime
+from src.utils.storage_paths import processed_article_path, raw_article_path
 
 
 class NewsPipeline:
@@ -35,52 +36,68 @@ class NewsPipeline:
         }
 
     def run(self) -> str:
-        articles = self._collect_articles()
-        self._save_json(self.settings.raw_data_path, articles)
+        raw_dir = Path(self.settings.raw_data_dir)
+        processed_dir = Path(self.settings.processed_data_dir)
 
-        filtered_articles = filter_articles(
-            articles=articles,
-            keywords=self.settings.filter_keywords,
-            start_time=self.settings.time_window_start,
-        )
+        self._collect_and_save_raw_per_source(raw_dir)
 
-        final_articles = []
-        for article in filtered_articles:
-            collector = self._get_collector_by_source(article['source'])
-            
-            if collector:
-                full_text = collector.fetch_full_content(article['url'])
-                if full_text:
-                    article['content'] = full_text
-                final_articles.append(article)
+        final_articles: list[dict] = []
+        for source_name in self.collectors_map:
+            raw_path = raw_article_path(raw_dir, source_name)
+            source_articles = load_articles_json(raw_path)
 
-        self._save_json(self.settings.processed_data_path, final_articles)
+            filtered = filter_articles(
+                articles=source_articles,
+                keywords=self.settings.filter_keywords,
+                start_time=self.settings.time_window_start,
+            )
 
-        keywords = extract_top_keywords(
+            processed_for_source: list[dict] = []
+            for article in filtered:
+                collector = self._get_collector_by_source(
+                    article.get("source") or article.get("source_name")
+                )
+                if collector:
+                    full_text = collector.fetch_full_content(article["url"])
+                    if full_text:
+                        article = {**article, "content": full_text}
+                    processed_for_source.append(article)
+
+            out_path = processed_article_path(processed_dir, source_name)
+            save_articles_json(out_path, processed_for_source)
+            final_articles.extend(processed_for_source)
+
+        keyword_weights = extract_top_keywords(
             final_articles, top_k=self.settings.top_keywords
         )
-        # ranked_articles = self._rank_articles(final_articles, keywords)
-        ranked_articles = rank_articles(final_articles, keywords)
+        keyword_ranked = sorted(
+            keyword_weights.items(), key=lambda item: item[1], reverse=True
+        )
+        ranked_articles = rank_articles(final_articles, keyword_weights)
         highlights = ranked_articles[: self.settings.top_highlights]
-        executive_summary = summarize_dataset(final_articles, self.settings.topic)
+        executive_summary = summarize_dataset(
+            final_articles, self.settings.topic, keyword_ranked
+        )
 
         return self._build_report(
             executive_summary=executive_summary,
-            keywords=keywords,
+            keywords=keyword_ranked,
             highlights=highlights,
         )
 
-    def _collect_articles(self) -> list[dict]:
-        articles: list[dict] = []
-        for name, collector in self.collectors_map.items():
+    def _collect_and_save_raw_per_source(self, raw_dir: Path) -> None:
+        for source_name, collector in self.collectors_map.items():
             try:
-                articles.extend(collector.fetch_articles())
+                articles = collector.fetch_articles()
             except Exception as e:
-                print(f"Error fetching from {name}: {e}")
-                continue
-        return articles
+                print(f"Error fetching from {source_name}: {e}")
+                articles = []
+            path = raw_article_path(raw_dir, source_name)
+            save_articles_json(path, articles)
 
-    def _get_collector_by_source(self, source_name: str):
+    def _get_collector_by_source(self, source_name: str | None):
+        if not source_name:
+            return None
         return self.collectors_map.get(source_name)
 
     def _rank_articles(
@@ -118,17 +135,17 @@ class NewsPipeline:
     def _build_report(
         self,
         executive_summary: str,
-        keywords: list[tuple[str, int]],
+        keywords: list[tuple[str, float]],
         highlights: list[dict],
     ) -> str:
         keyword_lines = "\n".join(
-            [f"- {keyword} ({count})" for keyword, count in keywords]
+            [f"- {keyword} ({count:.4f})" for keyword, count in keywords]
         )
         highlight_lines = "\n".join(
             [
                 (
                     f"### {idx}. {article.get('title', 'Untitled')}\n"
-                    f"- Source: {article.get('source', 'Unknown')}\n"
+                    f"- Source: {article.get('source_name') or article.get('source', 'Unknown')}\n"
                     f"- Published: {article.get('published_at', 'N/A')}\n"
                     f"- Summary: {article.get('summary', '')}\n"
                     f"- Link: {article.get('url', '')}\n"
@@ -146,13 +163,4 @@ class NewsPipeline:
             f"{keyword_lines if keyword_lines else '- No keywords extracted'}\n\n"
             "## Highlighted News\n"
             f"{highlight_lines if highlight_lines else 'No highlighted articles.'}\n"
-        )
-
-    @staticmethod
-    def _save_json(path_str: str, payload: list[dict]) -> None:
-        path = Path(path_str)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding="utf-8",
         )

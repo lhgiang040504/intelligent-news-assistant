@@ -29,6 +29,7 @@ class RSSCollector(BaseCollector):
             articles.append(
                 {
                     "source": self.source_name,
+                    "source_name": self.source_name,
                     "title": title,
                     "url": link,
                     "content": description,

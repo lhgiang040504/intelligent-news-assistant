@@ -40,8 +40,8 @@ class Settings:
     max_articles_per_source: int
     top_keywords: int
     top_highlights: int
-    raw_data_path: str
-    processed_data_path: str
+    raw_data_dir: str
+    processed_data_dir: str
     report_output_path: str
 
     @property
@@ -64,7 +64,7 @@ class Settings:
             max_articles_per_source=40,
             top_keywords=12,
             top_highlights=8,
-            raw_data_path=str(Path("data/raw/articles_raw.json")),
-            processed_data_path=str(Path("data/processed/articles_filtered.json")),
+            raw_data_dir=str(Path("data/raw")),
+            processed_data_dir=str(Path("data/processed")),
             report_output_path=str(Path("reports/weekly_report.md")),
         )
