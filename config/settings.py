@@ -26,6 +26,12 @@ TOPIC_TO_RSS = {
     },
 }
 
+TOPIC_KEYWORDS = {
+    "Technology": ["công nghệ", "ai", "blockchain", "phần mềm", "smartphone", "vi mạch", "số hóa", "tech", "điện tử"],
+    "Sports": ["thể thao", "bóng đá", "v-league", "ngoại hạng anh", "tennis", "cầu lông", "vận động viên"],
+    "Entertainment": ["giải trí", "showbiz", "nghệ sĩ", "phim", "nhạc", "concert", "hoa hậu", "điện ảnh"],
+    "Fashion": ["thời trang", "bộ sưu tập", "runway", "người mẫu", "vogue", "tạp chí", "trang phục"]
+}
 
 @dataclass(frozen=True)
 class Settings:
@@ -41,6 +47,10 @@ class Settings:
     @property
     def rss_sources(self) -> dict[str, str]:
         return TOPIC_TO_RSS[self.topic]
+
+    @property
+    def filter_keywords(self) -> list[str]:
+        return TOPIC_KEYWORDS.get(self.topic, [self.topic.lower()])
 
     @property
     def time_window_start(self) -> datetime:

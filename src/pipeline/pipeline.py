@@ -22,7 +22,7 @@ class NewsPipeline:
 
         filtered_articles = filter_articles(
             articles=articles,
-            topic=self.settings.topic,
+            keywords=self.settings.filter_keywords,
             start_time=self.settings.time_window_start,
         )
         self._save_json(self.settings.processed_data_path, filtered_articles)
