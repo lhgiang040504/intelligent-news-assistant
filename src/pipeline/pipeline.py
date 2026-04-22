@@ -7,7 +7,7 @@ from src.collectors.thanhnien import ThanhNienCollector
 from src.collectors.tuoitre import TuoiTreCollector
 from src.collectors.vnexpress import VnExpressCollector
 from src.processors.filter import filter_articles
-from src.processors.keyword_extractor import extract_top_keywords
+from src.processors.keyword_extractor import extract_top_keywords, rank_articles
 from src.processors.summarizer import summarize_dataset
 from src.utils.date_utils import parse_iso_datetime
 
@@ -52,14 +52,15 @@ class NewsPipeline:
                 full_text = collector.fetch_full_content(article['url'])
                 if full_text:
                     article['content'] = full_text
-                    final_articles.append(article)
+                final_articles.append(article)
 
         self._save_json(self.settings.processed_data_path, final_articles)
 
         keywords = extract_top_keywords(
             final_articles, top_k=self.settings.top_keywords
         )
-        ranked_articles = self._rank_articles(final_articles, keywords)
+        # ranked_articles = self._rank_articles(final_articles, keywords)
+        ranked_articles = rank_articles(final_articles, keywords)
         highlights = ranked_articles[: self.settings.top_highlights]
         executive_summary = summarize_dataset(final_articles, self.settings.topic)
 
