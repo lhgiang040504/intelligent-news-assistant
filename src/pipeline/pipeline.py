@@ -16,6 +16,24 @@ class NewsPipeline:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
 
+        self.collectors_map = {
+            "VnExpress": VnExpressCollector(
+                source_name="VnExpress",
+                rss_url=self.settings.rss_sources["VnExpress"],
+                max_items=self.settings.max_articles_per_source,
+            ),
+            "Thanh Nien": ThanhNienCollector(
+                source_name="Thanh Nien",
+                rss_url=self.settings.rss_sources["Thanh Nien"],
+                max_items=self.settings.max_articles_per_source,
+            ),
+            "Tuoi Tre": TuoiTreCollector(
+                source_name="Tuoi Tre",
+                rss_url=self.settings.rss_sources["Tuoi Tre"],
+                max_items=self.settings.max_articles_per_source,
+            ),
+        }
+
     def run(self) -> str:
         articles = self._collect_articles()
         self._save_json(self.settings.raw_data_path, articles)
@@ -25,14 +43,25 @@ class NewsPipeline:
             keywords=self.settings.filter_keywords,
             start_time=self.settings.time_window_start,
         )
-        self._save_json(self.settings.processed_data_path, filtered_articles)
+
+        final_articles = []
+        for article in filtered_articles:
+            collector = self._get_collector_by_source(article['source'])
+            
+            if collector:
+                full_text = collector.fetch_full_content(article['url'])
+                if full_text:
+                    article['content'] = full_text
+                    final_articles.append(article)
+
+        self._save_json(self.settings.processed_data_path, final_articles)
 
         keywords = extract_top_keywords(
-            filtered_articles, top_k=self.settings.top_keywords
+            final_articles, top_k=self.settings.top_keywords
         )
-        ranked_articles = self._rank_articles(filtered_articles, keywords)
+        ranked_articles = self._rank_articles(final_articles, keywords)
         highlights = ranked_articles[: self.settings.top_highlights]
-        executive_summary = summarize_dataset(filtered_articles, self.settings.topic)
+        executive_summary = summarize_dataset(final_articles, self.settings.topic)
 
         return self._build_report(
             executive_summary=executive_summary,
@@ -41,32 +70,17 @@ class NewsPipeline:
         )
 
     def _collect_articles(self) -> list[dict]:
-        collectors = [
-            VnExpressCollector(
-                source_name="VnExpress",
-                rss_url=self.settings.rss_sources["VnExpress"],
-                max_items=self.settings.max_articles_per_source,
-            ),
-            ThanhNienCollector(
-                source_name="Thanh Nien",
-                rss_url=self.settings.rss_sources["Thanh Nien"],
-                max_items=self.settings.max_articles_per_source,
-            ),
-            TuoiTreCollector(
-                source_name="Tuoi Tre",
-                rss_url=self.settings.rss_sources["Tuoi Tre"],
-                max_items=self.settings.max_articles_per_source,
-            ),
-        ]
-
         articles: list[dict] = []
-        for collector in collectors:
+        for name, collector in self.collectors_map.items():
             try:
                 articles.extend(collector.fetch_articles())
-            except Exception:
-                # Keep pipeline resilient when one source is temporarily unavailable.
+            except Exception as e:
+                print(f"Error fetching from {name}: {e}")
                 continue
         return articles
+
+    def _get_collector_by_source(self, source_name: str):
+        return self.collectors_map.get(source_name)
 
     def _rank_articles(
         self, articles: list[dict], keywords: list[tuple[str, int]]

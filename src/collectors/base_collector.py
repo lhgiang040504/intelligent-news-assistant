@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+import requests
+from bs4 import BeautifulSoup
 
 
 class BaseCollector(ABC):
@@ -10,3 +12,8 @@ class BaseCollector(ABC):
     @abstractmethod
     def fetch_articles(self) -> list[dict]:
         """Return a list of article dictionaries."""
+        pass
+    
+    @abstractmethod
+    def fetch_full_content(self, url: str) -> str:
+        pass
