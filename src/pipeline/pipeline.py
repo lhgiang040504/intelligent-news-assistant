@@ -8,7 +8,13 @@ from src.collectors.vnexpress import VnExpressCollector
 from src.processors.filter import filter_articles
 from src.processors.keyword_extractor import extract_top_keywords, rank_articles
 from src.processors.summarizer import summarize_dataset
-from src.utils.article_storage import load_articles_json, save_articles_json
+from src.utils.article_storage import (
+    clip_articles_to_window,
+    dedupe_articles_by_url_newest_first,
+    load_articles_json,
+    save_articles_json,
+    sort_articles_by_timestamp_desc,
+)
 from src.utils.date_utils import parse_iso_datetime
 from src.utils.storage_paths import processed_article_path, raw_article_path
 
@@ -50,6 +56,7 @@ class NewsPipeline:
                 articles=source_articles,
                 keywords=self.settings.filter_keywords,
                 start_time=self.settings.time_window_start,
+                end_time=self.settings.time_window_end,
             )
 
             processed_for_source: list[dict] = []
@@ -76,7 +83,10 @@ class NewsPipeline:
         ranked_articles = rank_articles(final_articles, keyword_weights)
         highlights = ranked_articles[: self.settings.top_highlights]
         executive_summary = summarize_dataset(
-            final_articles, self.settings.topic, keyword_ranked
+            final_articles,
+            self.settings.topic,
+            keyword_ranked,
+            time_window_label=self.settings.window_label(),
         )
 
         return self._build_report(
@@ -86,14 +96,43 @@ class NewsPipeline:
         )
 
     def _collect_and_save_raw_per_source(self, raw_dir: Path) -> None:
+        ws, we = self.settings.window_start, self.settings.window_end
         for source_name, collector in self.collectors_map.items():
+            path = raw_article_path(raw_dir, source_name)
+            existing = load_articles_json(path)
+            existing_sorted = sort_articles_by_timestamp_desc(existing)
+            anchor = self._incremental_anchor(existing_sorted, ws, we)
+
             try:
-                articles = collector.fetch_articles()
+                articles = collector.fetch_articles(min_published_after=anchor)
             except Exception as e:
                 print(f"Error fetching from {source_name}: {e}")
                 articles = []
-            path = raw_article_path(raw_dir, source_name)
-            save_articles_json(path, articles)
+
+            merged = dedupe_articles_by_url_newest_first(articles + existing_sorted)
+            clipped = clip_articles_to_window(merged, ws, we)
+            save_articles_json(path, clipped)
+
+    @staticmethod
+    def _incremental_anchor(
+        existing_newest_first: list[dict],
+        window_start: datetime,
+        window_end: datetime,
+    ) -> datetime | None:
+        """
+        If the newest stored article (index 0) is inside the active window, only fetch
+        RSS items strictly newer than that timestamp (incremental).
+        """
+        if not existing_newest_first:
+            return None
+        anchor = parse_iso_datetime(
+            existing_newest_first[0].get("published_at", "") or ""
+        )
+        if anchor is None:
+            return None
+        if window_start <= anchor <= window_end:
+            return anchor
+        return None
 
     def _get_collector_by_source(self, source_name: str | None):
         if not source_name:
@@ -156,7 +195,8 @@ class NewsPipeline:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         return (
             f"# Weekly News Report - {self.settings.topic}\n\n"
-            f"Generated at: {now}\n\n"
+            f"Generated at: {now}\n"
+            f"Time window: {self.settings.window_label()}\n\n"
             "## Executive Summary\n"
             f"{executive_summary}\n\n"
             "## Trending Keywords\n"

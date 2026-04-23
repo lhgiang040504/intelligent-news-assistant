@@ -4,7 +4,12 @@ from src.utils.date_utils import parse_iso_datetime
 from src.utils.text_utils import clean_text
 
 
-def filter_articles(articles: list[dict], keywords: list[str], start_time: datetime) -> list[dict]:
+def filter_articles(
+    articles: list[dict],
+    keywords: list[str],
+    start_time: datetime,
+    end_time: datetime | None = None,
+) -> list[dict]:
     filtered: list[dict] = []
     keywords_lower = [keyword.lower() for keyword in keywords]
 
@@ -12,11 +17,13 @@ def filter_articles(articles: list[dict], keywords: list[str], start_time: datet
         published = parse_iso_datetime(article.get("published_at", ""))
         if published is None or published < start_time:
             continue
+        if end_time is not None and published > end_time:
+            continue
 
         combined_text = clean_text(
             f"{article.get('title', '')} {article.get('content', '')}"
         ).lower()
-        
+
         if any(kw in combined_text for kw in keywords_lower):
             filtered.append(article)
 

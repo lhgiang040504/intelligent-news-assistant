@@ -74,6 +74,7 @@ def summarize_dataset(
     topic: str,
     keywords: List[Tuple[str, int]],
     top_k_keywords: int = 5,
+    time_window_label: str = "the selected time window",
 ) -> str:
     """
     Generate an executive summary for the dataset.
@@ -108,7 +109,7 @@ def summarize_dataset(
 
     # General overview
     summary_parts.append(
-        f"In the past week, {topic.lower()} news has been dominated by topics such as {keyword_str}."
+        f"Over {time_window_label}, {topic.lower()} news has been dominated by topics such as {keyword_str}."
     )
 
     # Dominant trends

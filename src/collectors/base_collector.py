@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
+
 import requests
 from bs4 import BeautifulSoup
 
@@ -10,8 +12,10 @@ class BaseCollector(ABC):
         self.max_items = max_items
 
     @abstractmethod
-    def fetch_articles(self) -> list[dict]:
-        """Return a list of article dictionaries."""
+    def fetch_articles(
+        self, min_published_after: datetime | None = None
+    ) -> list[dict]:
+        """Return article dicts. If min_published_after is set, stop at older/equal items (RSS newest-first)."""
         pass
     
     @abstractmethod

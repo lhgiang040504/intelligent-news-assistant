@@ -82,7 +82,7 @@ python main.py --from 2026-04-01 --to 2026-04-07
 
 ## 📊 Output
 
-    reports/weekly_report.md
+    reports/weekly_report_<YYYY-MM-DD_HHMMSS>_UTC.md (new file each run)
 
 ------------------------------------------------------------------------
 
