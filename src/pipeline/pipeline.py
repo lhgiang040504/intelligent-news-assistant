@@ -89,12 +89,29 @@ class NewsPipeline:
             time_window_label=self.settings.window_label(),
         )
 
+        # from src.llm import LLMReporter, enhance_summary_with_llm, extract_deeper_insights
+        # 
+        # llm = LLMReporter()
+        # if llm.enabled:
+        #     # Cải thiện executive summary cho tự nhiên hơn
+        #     original_summary = executive_summary
+        #     executive_summary = enhance_summary_with_llm(original_summary, self.settings.topic)
+        #     
+        #     # Thêm insights sâu hơn
+        #     insights = extract_deeper_insights(final_articles, [kw for kw, _ in keyword_ranked[:5]])
+        #     if insights:
+        #         executive_summary += f"\n\n**Key Insights:** {insights}"
+        #     
+        #     print("LLM enhancement applied to report")
+        # else:
+        #     print("LLM not available - using default pipeline")
+
         return self._build_report(
             executive_summary=executive_summary,
             keywords=keyword_ranked,
             highlights=highlights,
         )
-
+                
     def _collect_and_save_raw_per_source(self, raw_dir: Path) -> None:
         ws, we = self.settings.window_start, self.settings.window_end
         for source_name, collector in self.collectors_map.items():
