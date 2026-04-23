@@ -82,7 +82,15 @@ python main.py --from 2026-04-01 --to 2026-04-07
 
 ## 📊 Output
 
-    reports/weekly_report_<YYYY-MM-DD_HHMMSS>_UTC.md (new file each run)
+Add an end-to-end Intelligent News Assistant that collects RSS from VnExpress, Thanh Nien, and Tuoi Tre, filters by topic keywords and time window, ranks with TF-IDF-style keyword weights, scrapes full article HTML where supported, and writes a Markdown weekly report.
+
+CLI (main.py):
+- --topic for category or custom keyword (default technology).
+- --days N for rolling last N days (default 7).
+- --from / --to (YYYY-MM-DD) for fixed inclusive UTC date range.
+
+Reports:
+- Default report path includes generation UTC date/time in the filename (weekly_report_<YYYY-MM-DD_HHMMSS>_UTC.md).
 
 ------------------------------------------------------------------------
 
